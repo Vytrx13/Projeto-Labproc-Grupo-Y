@@ -33,9 +33,8 @@ graph TD
         
         subgraph Hardware ["Kit FNK0054 (Pinos GPIO)"]
             BTN[Botões Físicos] -->|Navegação de menus / Leitura de Poderes| PYG
-            FSM -->|Aciona| LED[LEDs Indicadores de Checkpoint]
             FSM -->|Aciona| BUZ[Buzzer de Feedback]
-            DANO -->|Atualiza| LCD[Display LCD 16x2]
+            DANO -->|Atualiza| LCD[Display LCD]
         end
         
         PYG -->|Atualização Visual| MON[Interface Gráfica / Monitor]
