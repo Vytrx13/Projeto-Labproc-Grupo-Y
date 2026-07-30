@@ -1,0 +1,5 @@
+# Motivação
+
+O projeto consiste no desenvolvimento de um jogo interativo de formato 1x1 que integra processamento de visão computacional, comunicação em rede e controle de hardware físico. A motivação técnica central é a implementação de uma arquitetura distribuída, separando a carga de processamento de imagem da execução da lógica do jogo.
+
+O sistema utiliza câmeras para capturar gestos manuais dos jogadores em tempo real. Os dados extraídos são transmitidos via protocolo UDP para uma central de processamento secundária (Raspberry Pi), que gerencia a interface gráfica e o estado da partida. Simultaneamente, componentes físicos de um kit de hardware (botões, buzzer e display LCD) são utilizados para fornecer feedback tátil, visual e auditivo, criando uma interface de controle híbrida entre o ambiente digital e o físico.
