@@ -228,19 +228,24 @@ class BattleState(State):
             readable, _, _ = select.select(self.sockets_list, [], [], 0)
             for s in readable:
                 data, addr = s.recvfrom(1024)
-                msg = data.decode("utf-8").strip()
+                msg_raw = data.decode("utf-8").strip()
                 porta = s.getsockname()[1]
                 
-                # Caso a mensagem ainda chegue com o prefixo P1: ou P2:, removemos por precaução
-                if msg.startswith("P1:"):
-                    msg = msg.split(":", 1)[1]
-                elif msg.startswith("P2:"):
-                    msg = msg.split(":", 1)[1]
+                # Trata prefixos antigos por garantia
+                if msg_raw.startswith("P1:"):
+                    msg_raw = msg_raw.split(":", 1)[1]
+                elif msg_raw.startswith("P2:"):
+                    msg_raw = msg_raw.split(":", 1)[1]
+
+                # Se o script da câmera envia o array Python puro tipo "[1, 0, 1, 1, 0]", converte para "10110"
+                msg_clean = msg_raw.replace("[", "").replace("]", "").replace(", ", "").replace(",", "")
 
                 if porta == UDP_PORT1:
-                    self.process_gesture(1, msg)
+                    print(f"[DEBUG UDP] Player 1 (Porta 5005) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'")
+                    self.process_gesture(1, msg_clean)
                 elif porta == UDP_PORT2:
-                    self.process_gesture(2, msg)
+                    print(f"[DEBUG UDP] Player 2 (Porta 5006) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'")
+                    self.process_gesture(2, msg_clean)
                     
         except BlockingIOError:
             pass
