@@ -25,7 +25,7 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 
-INPUT_MODE = "KEYBOARD"  # Pode alterar para "UDP" se for usar com mediapipe
+INPUT_MODE = "UDP"  # Pode alterar para "UDP" se for usar com mediapipe
 UDP_IP = "0.0.0.0"
 UDP_PORT1 = 5005
 UDP_PORT2 = 5006
