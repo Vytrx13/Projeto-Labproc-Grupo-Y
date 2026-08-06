@@ -3,11 +3,11 @@ import sys
 import socket
 import random
 
-# --- CONFIGURAÇÕES BÁSICAS ---
+# config
 WIDTH, HEIGHT = 1000, 600
 FPS = 60
 
-# Cores
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GRAY = (100, 100, 100)
@@ -16,16 +16,10 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 
-# ========================================================
-# CONTROLE DE MODO DE ENTRADA
-# ========================================================
 INPUT_MODE = "KEYBOARD"
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
 
-# ========================================================
-# DICIONÁRIO DE GESTOS (5 dedos: Polegar, Ind., Med., Anel., Min.)
-# ========================================================
 GESTURES = {
     "11111": "ABERTO",
     "00000": "PUNHO",
@@ -42,7 +36,7 @@ class Player:
         self.hp = 100
         self.x_pos = x_pos
         self.target_sequence = self.generate_new_sequence(4)
-        self.current_step = 0  # Qual símbolo da sequência ele está agora
+        self.current_step = 0  # símbolo da sequência ele está agora
         self.sequence_start_time = pygame.time.get_ticks()
 
     def generate_new_sequence(self, length):
@@ -54,7 +48,7 @@ class Player:
         self.target_sequence = self.generate_new_sequence(4)
 
     def check_timeout(self, current_time, timeout_ms=10000):
-        # Se passou de 10s desde que a sequência apareceu, reseta o progresso e o tempo
+        # se passou de 10s desde que a sequência apareceu, reseta o progresso e o tempo
         if (current_time - self.sequence_start_time) > timeout_ms:
             self.reset_sequence()
             return True
@@ -70,15 +64,14 @@ class Game:
         self.font = pygame.font.SysFont(None, 20)
         self.big_font = pygame.font.SysFont(None, 45)
 
-        # Jogadores
+        # jogadores
         self.p1 = Player(150)
-        self.p2 = Player(790)  # Ajustado para tela de 1000px
+        self.p2 = Player(790)
 
         # TODO: SUBSTITUIR PELOS SPRITES REAIS
         self.placeholder_p1_rect = pygame.Rect(self.p1.x_pos, 400, 60, 120)
         self.placeholder_p2_rect = pygame.Rect(self.p2.x_pos, 400, 60, 120)
 
-        # Rede
         if INPUT_MODE == "UDP":
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock.bind((UDP_IP, UDP_PORT))
@@ -91,23 +84,20 @@ class Game:
         player = self.p1 if player_id == 1 else self.p2
         opponent = self.p2 if player_id == 1 else self.p1
 
-        # Verifica se o gesto recebido é igual ao gesto atual que ele precisa fazer
+        # verifica se o gesto recebido é igual ao gesto atual que ele precisa fazer
         if gesture_str == player.target_sequence[player.current_step]:
             player.current_step += 1
 
-            # Se completou toda a sequência
+            # se completou toda a sequência
             if player.current_step >= len(player.target_sequence):
                 opponent.hp -= 25  # Causa Dano
-                player.target_sequence = player.generate_new_sequence(
-                    4
-                )  # Nova sequência
-                player.reset_sequence()  # Reseta estado
+                player.target_sequence = player.generate_new_sequence(4)
+                player.reset_sequence()
                 print(f"Jogador {player_id} COMPLETOU A SEQUÊNCIA E ATACOU!")
 
     def handle_input_keyboard(self, event):
         """Mapeia teclas do teclado para as arrays de 5 bits
 
-        === MAPA DE TECLAS (MODO KEYBOARD) ===
         JOGADOR 1:
         Q: ABERTO ("11111")
         W: PUNHO  ("00000")
@@ -123,9 +113,7 @@ class Game:
         P: APONTA ("01000")
         J: JOIA   ("10000")
         K: QUATRO ("01111")
-        =======================================
         """
-        # --- Jogador 1 (Q, W, E, R, T) ---
         if event.key == pygame.K_q:
             self.process_gesture(1, "11111")
         elif event.key == pygame.K_w:
@@ -139,7 +127,6 @@ class Game:
         elif event.key == pygame.K_y:
             self.process_gesture(1, "01111")
 
-        # --- Jogador 2 (U, I, O, P, J) ---
         elif event.key == pygame.K_u:
             self.process_gesture(2, "11111")
         elif event.key == pygame.K_i:
@@ -172,20 +159,20 @@ class Game:
     def check_logic(self):
         current_time = pygame.time.get_ticks()
 
-        # Checa se o tempo de 10 segundos expirou para alguém
+        # checa se o tempo de 10 segundos expirou para alguém
         if self.p1.check_timeout(current_time):
             print("Tempo do Jogador 1 esgotou! Sequência resetada.")
         if self.p2.check_timeout(current_time):
             print("Tempo do Jogador 2 esgotou! Sequência resetada.")
 
-        # Condição de Fim de Jogo
+        # fim de jogo
         if self.p1.hp <= 0 or self.p2.hp <= 0:
             self.running = False
             print("Fim de Jogo!")
 
     def draw_player_hud(self, player, x_offset, color):
         """Desenha a UI de um jogador (Barra de vida, sequência, tempo)"""
-        # Barra de Vida
+
         pygame.draw.rect(self.screen, WHITE, (x_offset, 30, 300, 25))
         hp_width = max(0, (player.hp / 100) * 300)
         pygame.draw.rect(
@@ -193,27 +180,24 @@ class Game:
         )
 
         # Desenhar Sequência Alvo (Os 4 passos)
-        # Cada passo vai ter uma cor diferente dependendo do estado
         for i, gesture_bits in enumerate(player.target_sequence):
             # Posicionamento horizontal dos icones da sequência
             icon_x = x_offset + (i * 70)
             icon_y = 70
 
-            # Determina cor
             if i < player.current_step:
-                # Já acertou
+                # já acertou
                 box_color = GREEN
                 text_color = BLACK
             elif i == player.current_step:
-                # O que ele precisa acertar AGORA (destaque)
+                # o que ele precisa acertar agora (destaque)
                 box_color = YELLOW
                 text_color = BLACK
             else:
-                # Símbolos futuros
+                # futuros
                 box_color = GRAY
                 text_color = WHITE
 
-            # Desenha o fundo do ícone
             pygame.draw.rect(
                 self.screen, box_color, (icon_x, icon_y, 60, 60), border_radius=5
             )
@@ -230,10 +214,9 @@ class Game:
                 text_surf = self.font.render(word, True, text_color)
                 self.screen.blit(text_surf, (icon_x + 5, icon_y + 10 + (w_idx * 15)))
 
-            # TODO: Aqui no futuro, ao invés de texto, você pode colocar o PNG da silhueta da mão!
-            # Exemplo: self.screen.blit(icone_silhueta_img, (icon_x, icon_y))
+            # TODO: adicionar PNG da silhueta da mão!
 
-        # Barra de Tempo (10 segundos)
+        # barra de tempo (10 segundos)
         current_time = pygame.time.get_ticks()
         time_elapsed = current_time - player.sequence_start_time
         time_left_ratio = 1.0 - (time_elapsed / 10000.0)  # 10000ms = 10s
@@ -247,11 +230,10 @@ class Game:
     def draw(self):
         self.screen.fill(BLACK)
 
-        # Desenhar Huds
         self.draw_player_hud(self.p1, 50, BLUE)
         self.draw_player_hud(self.p2, 650, RED)  # 1000 - 300 - 50 = 650
 
-        # Jogadores (Temporário)
+        # jogadores (Temporário)
         pygame.draw.rect(self.screen, BLUE, self.placeholder_p1_rect)
         pygame.draw.rect(self.screen, RED, self.placeholder_p2_rect)
 
