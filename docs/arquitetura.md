@@ -11,8 +11,8 @@ graph TD
         C1[Câmera Jogador 1] -->|Frames| MP1[OpenCV + MediaPipe]
         C2[Câmera Jogador 2] -->|Frames| MP2[OpenCV + MediaPipe]
         
-        MP1 -->|Filtra posições (ex: 1,0,1,0,0)| ARR1[Array P1]
-        MP2 -->|Filtra posições (ex: 0,1,1,0,0)| ARR2[Array P2]
+        MP1 -->|Extrai Array 10100| ARR1[Array P1]
+        MP2 -->|Extrai Array 01100| ARR2[Array P2]
         
         ARR1 --> UDP_TX1[Socket UDP TX - P1]
         ARR2 --> UDP_TX2[Socket UDP TX - P2]
