@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import logging
 import os
-from collections import deque
+import random
+import socket
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 import pygame
 from .state import State
@@ -15,35 +16,83 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (100, 100, 100)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+INPUT_MODE = "KEYBOARD"  # Pode alterar para "UDP" se for usar com mediapipe
+UDP_IP = "0.0.0.0"
+UDP_PORT = 5005
+
+GESTURES = {
+    "11111": "ABERTO",
+    "00000": "PUNHO",
+    "01100": "PAZ",
+    "01000": "APONTA",
+    "10000": "JOIA",
+    "01111": "QUATRO",
+}
+GESTURE_KEYS = list(GESTURES.keys())
+
+
+class Player:
+    def __init__(self):
+        self.hp = 100
+        self.target_sequence = self.generate_new_sequence(4)
+        self.current_step = 0
+        self.sequence_start_time = pygame.time.get_ticks()
+
+    def generate_new_sequence(self, length):
+        return [random.choice(GESTURE_KEYS) for _ in range(length)]
+
+    def reset_sequence(self):
+        self.current_step = 0
+        self.sequence_start_time = pygame.time.get_ticks()
+        self.target_sequence = self.generate_new_sequence(4)
+
+    def check_timeout(self, current_time, timeout_ms=10000):
+        if (current_time - self.sequence_start_time) > timeout_ms:
+            self.reset_sequence()
+            return True
+        return False
+
 
 class CombatPhase(Enum):
-    """Fases do loop de combate."""
-    BEGIN = auto()       # Apresentação dos Pokémon/Treinadores
-    DECISION = auto()    # Jogador e IA escolhem seus golpes no menu
-    ACTION = auto()      # Os golpes são executados na ordem de velocidade
-    CHECK_HP = auto()    # Verifica se alguém desmaiou/ganhou XP
-    END = auto()         # Fim do combate e transição de volta
+    BEGIN = auto()
+    ACTION = auto()
+    END = auto()
 
 
 class BattleState(State):
-    """
-    Estado responsável pela lógica e renderização da Batalha.
-    Gerencia turnos, ordem de ação e caixa de texto bloqueante.
-    """
-
     name = "CombatState"
 
     def __init__(self, client: LocalPygameClient) -> None:
         super().__init__(client)
 
-        self.player_mon = {"name": "Pikachu", "hp": 50, "speed": 12}
-        self.enemy_mon = {"name": "Charmander", "hp": 50, "speed": 10}
+        self.font = pygame.font.SysFont("Arial", 20)
+        self.hud_font = pygame.font.SysFont("Arial", 15)
+        self.big_font = pygame.font.SysFont("Arial", 45)
+        
+        self.p1 = Player()
+        self.p2 = Player()
+
+        # Nomes para display (mesmo do original, mas adaptado para o novo modelo)
+        self.p1_name = "Pikachu (P1)"
+        self.p2_name = "Charmander (P2)"
+
+        if INPUT_MODE == "UDP":
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.bind((UDP_IP, UDP_PORT))
+            self.sock.setblocking(False)
 
         # -------------------------------------------------------------
-        # 1. CARREGAMENTO DOS CAMINHOS DOS ARQUIVOS
+        # CARREGAMENTO DOS CAMINHOS DOS ARQUIVOS E SPRITES
         # -------------------------------------------------------------
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
         bg_path = os.path.join(BASE_DIR, "assets", "gradient_blue.png")
         sheet_path = os.path.join(BASE_DIR, "assets", "cobble_island_sheet.png")
         bicho1_path = os.path.join(BASE_DIR, "assets", "seven.png")
@@ -51,14 +100,12 @@ class BattleState(State):
 
         screen_size = self.client.surface.get_size()
 
-        # A) Fundo (Background)
         if os.path.exists(bg_path):
             raw_bg = pygame.image.load(bg_path).convert()
             self.background_surface = pygame.transform.scale(raw_bg, screen_size)
         else:
             self.background_surface = None
 
-        # B) Plataformas (Islands)
         self.island_back = None
         self.island_front = None
 
@@ -68,24 +115,21 @@ class BattleState(State):
             sheet_height = sheet.get_height()
 
             SCALE = 2.5
-            w = sheet_width // 2  # Metade da largura para cada plataforma
+            w = sheet_width // 2
             h = sheet_height
 
-            # Plataforma Oponente (Inimigo)
+            # Plataforma Inimigo
             self.island_back = pygame.transform.smoothscale(
                 sheet.subsurface(pygame.Rect(0, 0, w, h)),
                 (int(w * SCALE), int(h * SCALE))
             )
-
             # Plataforma Jogador
             self.island_front = pygame.transform.smoothscale(
                 sheet.subsurface(pygame.Rect(w, 0, w, h)),
                 (int(w * SCALE), int(h * SCALE))
             )
 
-        # C) Sprites dos Monstros
-        MON_SCALE = 0.35  # Ajuste a escala se quiser aumentar os sprites dos monstros
-
+        MON_SCALE = 0.35
         # Bicho 1 (Geralmente Inimigo/Oponente)
         if os.path.exists(bicho1_path):
             raw_b1 = pygame.image.load(bicho1_path).convert_alpha()
@@ -93,7 +137,6 @@ class BattleState(State):
                 raw_b1, 
                 (int(raw_b1.get_width() * MON_SCALE), int(raw_b1.get_height() * MON_SCALE))
             )
-            
         else:
             self.bicho1_sprite = None
 
@@ -108,61 +151,98 @@ class BattleState(State):
             self.bicho2_sprite = None
 
         self.phase: CombatPhase = CombatPhase.BEGIN
-
-        self.action_queue: deque[Dict[str, Any]] = deque()
         self.message_text: str = ""
         self.message_timer: float = 0.0
         self.is_displaying_message: bool = False
 
-        self.font = pygame.font.SysFont("Arial", 24)
-
-        self._set_message(f"Um {self.enemy_mon['name']} selvagem apareceu!", duration=2.5)
+        self._set_message("Batalha iniciada! Complete a sequência primeiro!", duration=3.0)
 
     def _set_message(self, text: str, duration: float = 2.0) -> None:
-        """Exibe uma mensagem na tela e bloqueia o avanço da lógica pelo tempo estipulado."""
         self.message_text = text
         self.message_timer = duration
         self.is_displaying_message = True
 
-    def is_blocked(self) -> bool:
-        """Verifica se o combate está esperando uma animação/texto terminar."""
-        return self.is_displaying_message
-
-    def process_event(self, events: list[pygame.event.Event]) -> None:
-        """Trata botões do jogador."""
-        if self.is_blocked():
-            for event in events:
-                if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                    self.message_timer = 0.0
+    def process_gesture(self, player_id, gesture_str):
+        if self.phase != CombatPhase.ACTION:
             return
 
-        if self.phase == CombatPhase.DECISION:
-            for event in events:
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_1:
-                        self._register_turn_actions(player_move="Atacar")
-                    elif event.key == pygame.K_2:
-                        self._register_turn_actions(player_move="Fugir")
+        player = self.p1 if player_id == 1 else self.p2
+        opponent = self.p2 if player_id == 1 else self.p1
 
-    def _register_turn_actions(self, player_move: str) -> None:
-        """Calcula a ordem das ações com base na velocidade dos Pokémon."""
-        if player_move == "Fugir":
-            self.action_queue.append({"user": "player", "action": "Fugir"})
-        else:
-            player_speed = self.player_mon.get("speed", 10)
-            enemy_speed = self.enemy_mon.get("speed", 8)
+        if gesture_str == player.target_sequence[player.current_step]:
+            player.current_step += 1
+            if player.current_step >= len(player.target_sequence):
+                opponent.hp -= 25
+                player.target_sequence = player.generate_new_sequence(4)
+                player.reset_sequence()
+                
+                attacker = self.p1_name if player_id == 1 else self.p2_name
+                self._set_message(f"{attacker} completou a sequência e atacou!", duration=2.0)
 
-            player_action = {"user": "player", "action": "Atacar", "move": player_move}
-            enemy_action = {"user": "enemy", "action": "Atacar", "move": "Investida"}
+    def handle_input_keyboard(self, event):
+        if event.key == pygame.K_q:
+            self.process_gesture(1, "11111")
+        elif event.key == pygame.K_w:
+            self.process_gesture(1, "00000")
+        elif event.key == pygame.K_e:
+            self.process_gesture(1, "01100")
+        elif event.key == pygame.K_r:
+            self.process_gesture(1, "01000")
+        elif event.key == pygame.K_t:
+            self.process_gesture(1, "10000")
+        elif event.key == pygame.K_y:
+            self.process_gesture(1, "01111")
+            
+        elif event.key == pygame.K_u:
+            self.process_gesture(2, "11111")
+        elif event.key == pygame.K_i:
+            self.process_gesture(2, "00000")
+        elif event.key == pygame.K_o:
+            self.process_gesture(2, "01100")
+        elif event.key == pygame.K_p:
+            self.process_gesture(2, "01000")
+        elif event.key == pygame.K_j:
+            self.process_gesture(2, "10000")
+        elif event.key == pygame.K_k:
+            self.process_gesture(2, "01111")
 
-            if player_speed >= enemy_speed:
-                self.action_queue.append(player_action)
-                self.action_queue.append(enemy_action)
-            else:
-                self.action_queue.append(enemy_action)
-                self.action_queue.append(player_action)
+    def process_event(self, events: list[pygame.event.Event]) -> None:
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if self.phase == CombatPhase.END and event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    self.client.state_manager.pop()
+                    return
+                if INPUT_MODE == "KEYBOARD":
+                    self.handle_input_keyboard(event)
 
-        self.phase = CombatPhase.ACTION
+    def handle_input_udp(self):
+        try:
+            data, addr = self.sock.recvfrom(1024)
+            msg = data.decode("utf-8").strip()
+            if msg.startswith("P1:"):
+                gesture = msg.split(":")[1]
+                self.process_gesture(1, gesture)
+            elif msg.startswith("P2:"):
+                gesture = msg.split(":")[1]
+                self.process_gesture(2, gesture)
+        except BlockingIOError:
+            pass
+        except Exception as e:
+            logger.error(f"UDP Error: {e}")
+
+    def check_logic(self):
+        current_time = pygame.time.get_ticks()
+        if self.p1.check_timeout(current_time):
+            pass  # Pode adicionar um efeito sonoro ou visual de erro aqui
+        if self.p2.check_timeout(current_time):
+            pass
+
+        if self.p1.hp <= 0 and self.phase != CombatPhase.END:
+            self._set_message(f"{self.p1_name} desmaiou! {self.p2_name} Venceu!", duration=5.0)
+            self.phase = CombatPhase.END
+        elif self.p2.hp <= 0 and self.phase != CombatPhase.END:
+            self._set_message(f"{self.p2_name} desmaiou! {self.p1_name} Venceu!", duration=5.0)
+            self.phase = CombatPhase.END
 
     def update(self, dt: float) -> None:
         super().update(dt)
@@ -172,67 +252,93 @@ class BattleState(State):
             if self.message_timer <= 0:
                 self.is_displaying_message = False
 
-        if self.is_blocked():
-            return
+        if self.phase == CombatPhase.BEGIN and not self.is_displaying_message:
+            self.phase = CombatPhase.ACTION
+            # Reset timer de ambos os jogadores quando a ação começar
+            self.p1.reset_sequence()
+            self.p2.reset_sequence()
 
-        self.update_combat_phase()
+        if self.phase == CombatPhase.ACTION:
+            if INPUT_MODE == "UDP":
+                self.handle_input_udp()
+            self.check_logic()
 
-    def update_combat_phase(self) -> None:
-        """Controla a transição entre as fases do combate."""
+    def draw_player_hud(self, surface, player, x_offset, color, align_right=False):
+        # Barra de HP
+        pygame.draw.rect(surface, WHITE, (x_offset, 30, 300, 25))
+        hp_width = max(0, (player.hp / 100) * 300)
+        hp_x = x_offset
+        if align_right:
+            hp_x = x_offset + (300 - hp_width)
+            
+        pygame.draw.rect(
+            surface, GREEN if player.hp > 30 else RED, (hp_x, 30, hp_width, 25)
+        )
 
-        if self.phase == CombatPhase.BEGIN:
-            self.phase = CombatPhase.DECISION
+        # Sequência alvo
+        box_w = 70
+        box_h = 60
+        spacing = 75
+        for i, gesture_bits in enumerate(player.target_sequence):
+            icon_x = x_offset + (i * spacing)
+            if align_right:
+                # Alinha os icones começando da direita
+                icon_x = x_offset + 300 - box_w - (i * spacing)
+                
+            icon_y = 70
 
-        elif self.phase == CombatPhase.DECISION:
-            pass
-
-        elif self.phase == CombatPhase.ACTION:
-            if self.action_queue:
-                action = self.action_queue.popleft()
-                self._execute_action(action)
+            if i < player.current_step:
+                box_color = GREEN
+                text_color = BLACK
+            elif i == player.current_step:
+                box_color = YELLOW
+                text_color = BLACK
             else:
-                self.phase = CombatPhase.CHECK_HP
+                box_color = GRAY
+                text_color = WHITE
 
-        elif self.phase == CombatPhase.CHECK_HP:
-            if self.enemy_mon["hp"] <= 0:
-                self._set_message(f"{self.enemy_mon['name']} desmaiou! Você venceu!", duration=3.0)
-                self.phase = CombatPhase.END
-            elif self.player_mon["hp"] <= 0:
-                self._set_message(f"{self.player_mon['name']} desmaiou! Você perdeu...", duration=3.0)
-                self.phase = CombatPhase.END
-            else:
-                self.phase = CombatPhase.DECISION
-
-        elif self.phase == CombatPhase.END:
-            self.client.state_manager.pop()
-
-    def _execute_action(self, action: Dict[str, Any]) -> None:
-        """Aplica o efeito de um golpe ou fuga e exibe a mensagem correspondente."""
-        user = action["user"]
-        act_type = action["action"]
-
-        if act_type == "Fugir":
-            self._set_message("Você fugiu com segurança!", duration=2.0)
-            self.phase = CombatPhase.END
-            return
-
-        if user == "player":
-            damage = 15
-            self.enemy_mon["hp"] = max(0, self.enemy_mon["hp"] - damage)
-            self._set_message(
-                f"{self.player_mon['name']} usou {action['move']} causando {damage} de dano!",
-                duration=2.0
+            pygame.draw.rect(
+                surface, box_color, (icon_x, icon_y, box_w, box_h), border_radius=5
             )
-        else:
-            damage = 10
-            self.player_mon["hp"] = max(0, self.player_mon["hp"] - damage)
-            self._set_message(
-                f"{self.enemy_mon['name']} inimigo usou {action['move']} causando {damage} de dano!",
-                duration=2.0
-            )
+            if i == player.current_step:
+                pygame.draw.rect(
+                    surface, WHITE, (icon_x, icon_y, box_w, box_h), 3, border_radius=5
+                )
+
+            gesture_name = GESTURES.get(gesture_bits, "???")
+            words = gesture_name.split()
+            for w_idx, word in enumerate(words):
+                text_surf = self.hud_font.render(word, True, text_color)
+                # Centraliza o texto na caixinha
+                text_rect = text_surf.get_rect(center=(icon_x + box_w // 2, icon_y + 30 + (w_idx * 15) - (len(words) - 1) * 7))
+                surface.blit(text_surf, text_rect)
+
+        # Barra de tempo (10 segundos)
+        current_time = pygame.time.get_ticks()
+        time_elapsed = current_time - player.sequence_start_time
+        time_left_ratio = 1.0 - (time_elapsed / 10000.0)
+        if time_left_ratio < 0: time_left_ratio = 0
+
+        timer_w = 300
+        timer_x = x_offset
+        pygame.draw.rect(surface, RED, (timer_x, 140, timer_w, 10))
+        
+        active_timer_w = int(timer_w * time_left_ratio)
+        active_timer_x = timer_x
+        if align_right:
+            active_timer_x = timer_x + (timer_w - active_timer_w)
+            
+        pygame.draw.rect(
+            surface, WHITE, (active_timer_x, 140, active_timer_w, 10)
+        )
+
+    def draw_text_with_shadow(self, surface, text, x, y, font, text_color, shadow_color=BLACK):
+        shadow = font.render(text, True, shadow_color)
+        surface.blit(shadow, (x + 2, y + 2))
+        main_text = font.render(text, True, text_color)
+        surface.blit(main_text, (x, y))
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Renderiza o cenário, plataformas, monstros e a interface."""
         screen_w = surface.get_width()
         screen_h = surface.get_height()
 
@@ -245,50 +351,43 @@ class BattleState(State):
             back_x = int(screen_w * 0.55)
             back_y = int(screen_h * 0.22)
             surface.blit(self.island_back, (back_x, back_y))
-
             if self.bicho1_sprite:
                 island_w, island_h = self.island_back.get_size()
                 sprite_w, sprite_h = self.bicho1_sprite.get_size()
-
                 b1_x = back_x + (island_w // 2) - (sprite_w // 2)
-
                 b1_y = back_y + int(island_h * 0.8) - sprite_h
-
                 surface.blit(self.bicho1_sprite, (b1_x, b1_y))
 
         if self.island_front:
             front_x = int(screen_w * 0.05)
             front_y = int(screen_h * 0.50)
             surface.blit(self.island_front, (front_x, front_y))
-
-           
             if self.bicho2_sprite:
                 island_w, island_h = self.island_front.get_size()
                 sprite_w, sprite_h = self.bicho2_sprite.get_size()
-
                 b2_x = front_x + (island_w // 2) - (sprite_w // 2)
-
                 b2_y = front_y + int(island_h * 0.7) - sprite_h
-
                 surface.blit(self.bicho2_sprite, (b2_x, b2_y))
 
-        e_info = f"{self.enemy_mon['name']} - HP: {self.enemy_mon['hp']}/50"
-        e_surface = self.font.render(e_info, True, (0, 0, 0))
-        surface.blit(e_surface, (450, 40))
+        # Desenhar interfaces HUD no topo
+        self.draw_player_hud(surface, self.p1, 20, BLUE, align_right=False)
+        self.draw_player_hud(surface, self.p2, screen_w - 320, RED, align_right=True)
 
-        p_info = f"{self.player_mon['name']} - HP: {self.player_mon['hp']}/50"
-        p_surface = self.font.render(p_info, True, (0, 0, 0))
-        surface.blit(p_surface, (50, 240))
-
-        dialog_rect = pygame.Rect(20, 420, 760, 160)
-        pygame.draw.rect(surface, (20, 20, 30), dialog_rect)
-        pygame.draw.rect(surface, (255, 255, 255), dialog_rect, 3)
+        # Desenhar nomes próximos à barra de HP com sombreamento
+        self.draw_text_with_shadow(surface, self.p1_name, 20, 5, self.font, WHITE)
+        
+        name2_surf = self.font.render(self.p2_name, True, WHITE)
+        self.draw_text_with_shadow(surface, self.p2_name, screen_w - 20 - name2_surf.get_width(), 5, self.font, WHITE)
 
         if self.is_displaying_message:
+            dialog_rect = pygame.Rect(20, screen_h - 140, screen_w - 40, 120)
+            pygame.draw.rect(surface, (20, 20, 30), dialog_rect)
+            pygame.draw.rect(surface, (255, 255, 255), dialog_rect, 3)
             txt_surface = self.font.render(self.message_text, True, (255, 255, 255))
             surface.blit(txt_surface, (dialog_rect.x + 20, dialog_rect.y + 20))
-        elif self.phase == CombatPhase.DECISION:
-            prompt = self.font.render("Pressione [1] para Atacar | Pressione [2] para Fugir", True, (255, 255, 0))
-            surface.blit(prompt, (dialog_rect.x + 20, dialog_rect.y + 20))
+            
+            if self.phase == CombatPhase.END:
+                prompt = self.font.render("Pressione [ENTER] ou [ESPAÇO] para sair", True, (255, 255, 0))
+                surface.blit(prompt, (dialog_rect.x + 20, dialog_rect.y + 60))
 
         super().draw(surface)
