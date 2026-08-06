@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import socket
+import select
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
@@ -26,7 +27,8 @@ YELLOW = (255, 255, 0)
 
 INPUT_MODE = "KEYBOARD"  # Pode alterar para "UDP" se for usar com mediapipe
 UDP_IP = "0.0.0.0"
-UDP_PORT = 5005
+UDP_PORT1 = 5005
+UDP_PORT2 = 5006
 
 GESTURES = {
     "11111": "ABERTO",
@@ -85,9 +87,15 @@ class BattleState(State):
         self.p2_name = "Charmander (P2)"
 
         if INPUT_MODE == "UDP":
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.bind((UDP_IP, UDP_PORT))
-            self.sock.setblocking(False)
+            self.sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock1.bind((UDP_IP, UDP_PORT1))
+            self.sock1.setblocking(False)
+            
+            self.sock2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock2.bind((UDP_IP, UDP_PORT2))
+            self.sock2.setblocking(False)
+            
+            self.sockets_list = [self.sock1, self.sock2]
 
         # -------------------------------------------------------------
         # CARREGAMENTO DOS CAMINHOS DOS ARQUIVOS E SPRITES
@@ -217,14 +225,23 @@ class BattleState(State):
 
     def handle_input_udp(self):
         try:
-            data, addr = self.sock.recvfrom(1024)
-            msg = data.decode("utf-8").strip()
-            if msg.startswith("P1:"):
-                gesture = msg.split(":")[1]
-                self.process_gesture(1, gesture)
-            elif msg.startswith("P2:"):
-                gesture = msg.split(":")[1]
-                self.process_gesture(2, gesture)
+            readable, _, _ = select.select(self.sockets_list, [], [], 0)
+            for s in readable:
+                data, addr = s.recvfrom(1024)
+                msg = data.decode("utf-8").strip()
+                porta = s.getsockname()[1]
+                
+                # Caso a mensagem ainda chegue com o prefixo P1: ou P2:, removemos por precaução
+                if msg.startswith("P1:"):
+                    msg = msg.split(":", 1)[1]
+                elif msg.startswith("P2:"):
+                    msg = msg.split(":", 1)[1]
+
+                if porta == UDP_PORT1:
+                    self.process_gesture(1, msg)
+                elif porta == UDP_PORT2:
+                    self.process_gesture(2, msg)
+                    
         except BlockingIOError:
             pass
         except Exception as e:
