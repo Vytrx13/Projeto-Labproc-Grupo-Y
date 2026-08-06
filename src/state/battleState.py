@@ -106,23 +106,16 @@ class BattleState(State):
             )
         else:
             self.bicho2_sprite = None
-        # -------------------------------------------------------------
 
-        # Controle da Máquina de Estados de Batalha
         self.phase: CombatPhase = CombatPhase.BEGIN
 
-        # Filas para processamento
         self.action_queue: deque[Dict[str, Any]] = deque()
-
-        # Sistema de Caixa de Texto / Animação Bloqueante
         self.message_text: str = ""
         self.message_timer: float = 0.0
         self.is_displaying_message: bool = False
 
-        # Interface gráfica simples
         self.font = pygame.font.SysFont("Arial", 24)
 
-        # Inicia o combate
         self._set_message(f"Um {self.enemy_mon['name']} selvagem apareceu!", duration=2.5)
 
     def _set_message(self, text: str, duration: float = 2.0) -> None:
@@ -243,39 +236,31 @@ class BattleState(State):
         screen_w = surface.get_width()
         screen_h = surface.get_height()
 
-        # 1. BACKGROUND
         if self.background_surface:
             surface.blit(self.background_surface, (0, 0))
         else:
             surface.fill((40, 50, 60))
 
-        # 2. PLATAFORMA E MONSTRO INIMIGO (Canto Superior Direito)
         if self.island_back:
             back_x = int(screen_w * 0.55)
             back_y = int(screen_h * 0.22)
             surface.blit(self.island_back, (back_x, back_y))
 
-            # Desenha o Bicho 1 sobre a plataforma de trás
             if self.bicho1_sprite:
-            # Largura e Altura para cálculo do centro
                 island_w, island_h = self.island_back.get_size()
                 sprite_w, sprite_h = self.bicho1_sprite.get_size()
 
-                # Centraliza perfeitamente no Eixo X
                 b1_x = back_x + (island_w // 2) - (sprite_w // 2)
 
-                # Posiciona os pés no centro do topo da plataforma (Eixo Y)
                 b1_y = back_y + int(island_h * 0.8) - sprite_h
 
                 surface.blit(self.bicho1_sprite, (b1_x, b1_y))
 
-        # 3. PLATAFORMA E MONSTRO DO JOGADOR (Canto Inferior Esquerdo)
         if self.island_front:
             front_x = int(screen_w * 0.05)
             front_y = int(screen_h * 0.50)
             surface.blit(self.island_front, (front_x, front_y))
 
-            # Desenha o Bicho 2 sobre a plataforma da frente
            
             if self.bicho2_sprite:
                 island_w, island_h = self.island_front.get_size()
@@ -295,7 +280,6 @@ class BattleState(State):
         p_surface = self.font.render(p_info, True, (0, 0, 0))
         surface.blit(p_surface, (50, 240))
 
-        # --- HUD E MENSAGENS ---
         dialog_rect = pygame.Rect(20, 420, 760, 160)
         pygame.draw.rect(surface, (20, 20, 30), dialog_rect)
         pygame.draw.rect(surface, (255, 255, 255), dialog_rect, 3)
