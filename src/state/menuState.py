@@ -33,9 +33,11 @@ class MenuState(State):
         super().update(dt)
 
     def draw(self, surface: pygame.Surface) -> None:
-        surface.fill((30, 30, 40)) 
-        
-        title = self.title_font.render("Selecione o Modo de Jogo", True, (255, 255, 255))
+        surface.fill((30, 30, 40))
+
+        title = self.title_font.render(
+            "Selecione o Modo de Jogo", True, (255, 255, 255)
+        )
         title_rect = title.get_rect(center=(self.rect.centerx, 150))
         surface.blit(title, title_rect)
 
@@ -44,7 +46,7 @@ class MenuState(State):
             text = self.font.render(option, True, color)
             rect = text.get_rect(center=(self.rect.centerx, 250 + i * 50))
             surface.blit(text, rect)
-            
+
             if i == self.selected_index:
                 cursor = self.font.render(">", True, color)
                 cursor_rect = cursor.get_rect(midright=(rect.left - 10, rect.centery))
