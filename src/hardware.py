@@ -51,7 +51,7 @@ def play_tone(freq, duration):
             pwm.stop()
         else:
             pwm.ChangeFrequency(freq)
-            pwm.start(50)  # 50% duty cycle
+            pwm.start(5)
         time.sleep(duration)
         pwm.stop()
     except:
@@ -60,17 +60,17 @@ def play_tone(freq, duration):
 
 def success_sound():
     def _play():
-        play_tone(1200, 0.1)
-        play_tone(1500, 0.1)
-        play_tone(2000, 0.2)
+        play_tone(1200, 0.05)
+        play_tone(1500, 0.05)
+        play_tone(2000, 0.1)
 
     threading.Thread(target=_play, daemon=True).start()
 
 
 def error_sound():
     def _play():
-        play_tone(300, 0.4)
-        play_tone(200, 0.4)
+        play_tone(300, 0.15)
+        play_tone(200, 0.15)
 
     threading.Thread(target=_play, daemon=True).start()
 
@@ -78,8 +78,8 @@ def error_sound():
 def special_sound():
     def _play():
         for _ in range(5):
-            play_tone(2500, 0.1)
-            time.sleep(0.1)
+            play_tone(2500, 0.05)
+            time.sleep(0.05)
 
     threading.Thread(target=_play, daemon=True).start()
 
