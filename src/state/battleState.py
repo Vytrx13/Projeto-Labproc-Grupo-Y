@@ -44,7 +44,7 @@ GESTURE_KEYS = ["11111", "01100", "10000", "00001", "10001", "11100", "11110"]
 
 class Player:
     def __init__(self):
-        self.hp = 100
+        self.hp = 200
         self.special_charges = 0
         self.max_special_charges = 2
         self.last_sequence_end_symbol = None
@@ -111,8 +111,8 @@ class BattleState(State):
         self.p2 = Player()
 
         # Nomes para display (mesmo do original, mas adaptado para o novo modelo)
-        self.p1_name = "Pikachu (P1)"
-        self.p2_name = "Charmander (P2)"
+        self.p1_name = "Six (P1)"
+        self.p2_name = "Seven (P2)"
 
         if self.input_mode == "UDP":
             self.sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -220,7 +220,7 @@ class BattleState(State):
                 self._set_message(f"{attacker_name} usou o ESPECIAL! Oponente atordoado!", duration=3.0)
             else:
                 opponent.hp -= 25
-                player.hp = min(100, player.hp + 25)
+                player.hp = min(200, player.hp + 25)
                 self._set_message(f"{attacker_name} usou o ESPECIAL! Curou 25 HP!", duration=3.0)
             return
 
@@ -366,13 +366,13 @@ class BattleState(State):
     def draw_player_hud(self, surface, player, x_offset, color, align_right=False):
         # Barra de HP
         pygame.draw.rect(surface, WHITE, (x_offset, 30, 300, 25))
-        hp_width = max(0, (player.hp / 100) * 300)
+        hp_width = max(0, (player.hp / 200) * 300)
         hp_x = x_offset
         if align_right:
             hp_x = x_offset + (300 - hp_width)
 
         pygame.draw.rect(
-            surface, GREEN if player.hp > 30 else RED, (hp_x, 30, hp_width, 25)
+            surface, GREEN if player.hp > 60 else RED, (hp_x, 30, hp_width, 25)
         )
 
         # Sequência alvo
@@ -473,16 +473,35 @@ class BattleState(State):
 
         if player.special_charges >= player.max_special_charges:
             spec_key = "A" if player == self.p1 else "L"
-            txt = f"ESPECIAL PRONTO! [{spec_key}]" if self.input_mode == "KEYBOARD" else "ESPECIAL PRONTO! [ROCK 🤟]"
             
-            t_surf = self.alert_font.render(txt, True, YELLOW)
-            x_pos = timer_x + 70
-            if align_right:
-                x_pos = timer_x + timer_w - t_surf.get_width()
+            if self.input_mode == "KEYBOARD":
+                txt = f"ESPECIAL PRONTO! [{spec_key}]"
+                t_surf = self.alert_font.render(txt, True, YELLOW)
+                x_pos = timer_x + 70
+                if align_right:
+                    x_pos = timer_x + timer_w - t_surf.get_width()
+                y_pos = special_y - t_surf.get_height() // 2
+                self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
+            else:
+                txt = "ESPECIAL PRONTO!"
+                t_surf = self.alert_font.render(txt, True, YELLOW)
+                spec_img = self.gesture_images.get("01001")
                 
-            y_pos = special_y - t_surf.get_height() // 2
-            
-            self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
+                if spec_img:
+                    mini_img = pygame.transform.smoothscale(spec_img, (30, 40))
+                    total_w = t_surf.get_width() + 5 + mini_img.get_width()
+                else:
+                    total_w = t_surf.get_width()
+                    
+                x_pos = timer_x + 70
+                if align_right:
+                    x_pos = timer_x + timer_w - total_w
+                    
+                y_pos = special_y - t_surf.get_height() // 2
+                self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
+                
+                if spec_img:
+                    surface.blit(mini_img, (x_pos + t_surf.get_width() + 5, special_y - 20))
 
     def draw_text_with_shadow(
         self, surface, text, x, y, font, text_color, shadow_color=BLACK

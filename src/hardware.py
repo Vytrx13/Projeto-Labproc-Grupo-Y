@@ -155,5 +155,5 @@ def update_lcd(hp1, hp2):
         return
     last_hp1 = hp1
     last_hp2 = hp2
-    lcd_string(f"P1 HP: {hp1}/100", LCD_LINE_1)
-    lcd_string(f"P2 HP: {hp2}/100", LCD_LINE_2)
+    lcd_string(f"P1 HP: {hp1}/200", LCD_LINE_1)
+    lcd_string(f"P2 HP: {hp2}/200", LCD_LINE_2)
