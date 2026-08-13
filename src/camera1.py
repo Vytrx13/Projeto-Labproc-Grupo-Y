@@ -7,7 +7,7 @@ import math
 
 
 UDP_IP = "127.0.0.1"
-PORT = "4242"
+UDP_PORT = 5005
 
 
 def distance2D(a, b):
@@ -86,6 +86,9 @@ while True:
                     fingers.append(0)
 
             total_fingers = sum(fingers)
+            
+            MESSAGE = "".join(map(str, fingers))
+            sock.sendto(MESSAGE.encode('utf-8'), (UDP_IP, UDP_PORT))
 
             mp_draw.draw_landmarks(
                 img,

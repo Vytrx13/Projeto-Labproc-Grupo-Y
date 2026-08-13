@@ -310,14 +310,10 @@ class BattleState(State):
                 )
 
                 if porta == UDP_PORT1:
-                    print(
-                        f"[DEBUG UDP] Player 1 (Porta 5005) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'"
-                    )
+                    print(f"Recebido no raspberry (P1): {msg_clean}")
                     self.process_gesture(1, msg_clean)
                 elif porta == UDP_PORT2:
-                    print(
-                        f"[DEBUG UDP] Player 2 (Porta 5006) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'"
-                    )
+                    print(f"Recebido no raspberry (P2): {msg_clean}")
                     self.process_gesture(2, msg_clean)
 
         except BlockingIOError:

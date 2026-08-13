@@ -5,8 +5,8 @@ import mediapipe as mp
 import socket
 import math
 
-UDP_IP = "172.20.10.6"
-UDP_PORT=5005
+UDP_IP = "127.0.0.1"
+UDP_PORT = 5006
 
 
 def distance2D(a, b):
@@ -83,10 +83,9 @@ while True:
                     fingers.append(0)
 
             total_fingers = sum(fingers)
-            MESSAGE= fingers
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            MESSAGE = "".join(map(str, fingers))
             sock.sendto(MESSAGE.encode('utf-8'), (UDP_IP, UDP_PORT))
-            print(fingers)
+            print(MESSAGE)
 
             mp_draw.draw_landmarks(
                 img,
