@@ -2,12 +2,11 @@ import time
 import socket
 import cv2
 import mediapipe as mp
-
+import socket
 import math
 
-
-UDP_IP = "127.0.0.1"
-PORT = "4242"
+UDP_IP = "10.31.191.165"
+UDP_PORT=5006
 
 
 def distance2D(a, b):
@@ -71,7 +70,6 @@ while True:
 
             fingers = []            
             dist = distance2D(landmarks[4], landmarks[9])
-            print(f"{dist}")
             if 0.15 < dist:
                 fingers.append(1)
             else:
@@ -79,13 +77,16 @@ while True:
 
             for i in range(1, 5):
                 ang = angle(landmarks[tip_ids[i]], landmarks[tip_ids[i]-1], landmarks[tip_ids[i]-2])
-                print(f"{tip_ids[i]}: {ang}")
                 if 160 <= ang <= 180 :
                     fingers.append(1)
                 else:
                     fingers.append(0)
 
             total_fingers = sum(fingers)
+            MESSAGE= fingers
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(str(MESSAGE).encode('utf-8'), (UDP_IP, UDP_PORT))
+            print(fingers)
 
             mp_draw.draw_landmarks(
                 img,

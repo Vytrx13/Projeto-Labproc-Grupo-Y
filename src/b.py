@@ -5,7 +5,7 @@ import mediapipe as mp
 import socket
 import math
 
-UDP_IP = "172.20.10.6"
+UDP_IP = "10.31.191.165"
 UDP_PORT=5005
 
 
@@ -30,7 +30,7 @@ def angle(a, b, c):
     return angle
 
 
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(0)
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
@@ -85,7 +85,7 @@ while True:
             total_fingers = sum(fingers)
             MESSAGE= fingers
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(MESSAGE.encode('utf-8'), (UDP_IP, UDP_PORT))
+            sock.sendto(str(MESSAGE).encode('utf-8'), (UDP_IP, UDP_PORT))
             print(fingers)
 
             mp_draw.draw_landmarks(
