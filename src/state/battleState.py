@@ -36,13 +36,16 @@ GESTURES = {
     "01000": "APONTA",
     "10000": "JOIA",
     "01111": "QUATRO",
+    "01001": "ESPECIAL",
 }
-GESTURE_KEYS = list(GESTURES.keys())
+GESTURE_KEYS = ["11111", "00000", "01100", "01000", "10000", "01111"]
 
 
 class Player:
     def __init__(self):
         self.hp = 100
+        self.special_charges = 0
+        self.max_special_charges = 2
         self.last_sequence_end_symbol = None
         self.target_sequence = self.generate_new_sequence(4)
         self.current_step = 0
@@ -87,6 +90,7 @@ class BattleState(State):
         self.font = pygame.font.SysFont("Arial", 20)
         self.hud_font = pygame.font.SysFont("Arial", 15)
         self.big_font = pygame.font.SysFont("Arial", 45)
+        self.alert_font = pygame.font.SysFont("Arial", 16, bold=True)
 
         self.p1 = Player()
         self.p2 = Player()
@@ -189,16 +193,30 @@ class BattleState(State):
 
         player = self.p1 if player_id == 1 else self.p2
         opponent = self.p2 if player_id == 1 else self.p1
+        attacker_name = self.p1_name if player_id == 1 else self.p2_name
+
+        if gesture_str == "01001" and player.special_charges >= player.max_special_charges:
+            player.special_charges = 0
+            if player_id == 1:
+                opponent.hp -= 20
+                opponent.reset_sequence()
+                self._set_message(f"{attacker_name} usou o ESPECIAL! Oponente atordoado!", duration=3.0)
+            else:
+                opponent.hp -= 25
+                player.hp = min(100, player.hp + 25)
+                self._set_message(f"{attacker_name} usou o ESPECIAL! Curou 25 HP!", duration=3.0)
+            return
 
         if gesture_str == player.target_sequence[player.current_step]:
             player.current_step += 1
             if player.current_step >= len(player.target_sequence):
                 opponent.hp -= 25
+                if player.special_charges < player.max_special_charges:
+                    player.special_charges += 1
                 player.reset_sequence()
 
-                attacker = self.p1_name if player_id == 1 else self.p2_name
                 self._set_message(
-                    f"{attacker} completou a sequência e atacou!", duration=2.0
+                    f"{attacker_name} completou a sequência e atacou!", duration=2.0
                 )
 
     def handle_input_keyboard(self, event):
@@ -214,6 +232,8 @@ class BattleState(State):
             self.process_gesture(1, "10000")
         elif event.key == pygame.K_y:
             self.process_gesture(1, "01111")
+        elif event.key == pygame.K_a:
+            self.process_gesture(1, "01001")
 
         elif event.key == pygame.K_u:
             self.process_gesture(2, "11111")
@@ -227,6 +247,8 @@ class BattleState(State):
             self.process_gesture(2, "10000")
         elif event.key == pygame.K_k:
             self.process_gesture(2, "01111")
+        elif event.key == pygame.K_l:
+            self.process_gesture(2, "01001")
 
     def process_event(self, events: list[pygame.event.Event]) -> None:
         for event in events:
@@ -336,9 +358,6 @@ class BattleState(State):
         spacing = 75
         for i, gesture_bits in enumerate(player.target_sequence):
             icon_x = x_offset + (i * spacing)
-            if align_right:
-                # Alinha os icones começando da direita
-                icon_x = x_offset + 300 - box_w - (i * spacing)
 
             icon_y = 70
 
@@ -398,10 +417,34 @@ class BattleState(State):
 
         active_timer_w = int(timer_w * time_left_ratio)
         active_timer_x = timer_x
-        if align_right:
-            active_timer_x = timer_x + (timer_w - active_timer_w)
 
         pygame.draw.rect(surface, WHITE, (active_timer_x, 140, active_timer_w, 10))
+
+        # Bolinhas de Especial (Special)
+        special_y = 165
+        for i in range(player.max_special_charges):
+            cx = timer_x + 15 + (i * 30)
+            
+            if i < player.special_charges:
+                color = YELLOW if player.special_charges >= player.max_special_charges else (100, 200, 255)
+            else:
+                color = GRAY
+                
+            pygame.draw.circle(surface, color, (cx, special_y), radius=10)
+            pygame.draw.circle(surface, WHITE, (cx, special_y), radius=10, width=2)
+
+        if player.special_charges >= player.max_special_charges:
+            spec_key = "A" if player == self.p1 else "L"
+            txt = f"ESPECIAL PRONTO! [{spec_key}]" if self.input_mode == "KEYBOARD" else "ESPECIAL PRONTO! [ROCK 🤟]"
+            
+            t_surf = self.alert_font.render(txt, True, YELLOW)
+            x_pos = timer_x + 70
+            if align_right:
+                x_pos = timer_x + timer_w - t_surf.get_width()
+                
+            y_pos = special_y - t_surf.get_height() // 2
+            
+            self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
 
     def draw_text_with_shadow(
         self, surface, text, x, y, font, text_color, shadow_color=BLACK
