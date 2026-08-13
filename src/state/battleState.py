@@ -109,6 +109,7 @@ class BattleState(State):
 
         self.p1 = Player()
         self.p2 = Player()
+        self.animations = []
 
         # Nomes para display (mesmo do original, mas adaptado para o novo modelo)
         self.p1_name = "Six (P1)"
@@ -217,10 +218,13 @@ class BattleState(State):
             if player_id == 1:
                 opponent.hp -= 20
                 opponent.reset_sequence()
+                self.animations.append({"type": "stun", "target": 2, "timer": 0.8, "max": 0.8})
                 self._set_message(f"{attacker_name} usou o ESPECIAL! Oponente atordoado!", duration=3.0)
             else:
                 opponent.hp -= 25
                 player.hp = min(200, player.hp + 25)
+                self.animations.append({"type": "heal", "target": 2, "timer": 1.0, "max": 1.0})
+                self.animations.append({"type": "hit", "target": 1, "timer": 0.4, "max": 0.4})
                 self._set_message(f"{attacker_name} usou o ESPECIAL! Curou 25 HP!", duration=3.0)
             return
 
@@ -231,6 +235,8 @@ class BattleState(State):
                 hardware.success_sound()
                 
                 opponent.hp -= 25
+                self.animations.append({"type": "dash", "actor": player_id, "timer": 0.4, "max": 0.4})
+                self.animations.append({"type": "hit", "target": 2 if player_id == 1 else 1, "timer": 0.4, "max": 0.4})
                 if player.special_charges < player.max_special_charges:
                     player.special_charges += 1
                 player.reset_sequence()
@@ -343,6 +349,11 @@ class BattleState(State):
 
     def update(self, dt: float) -> None:
         super().update(dt)
+
+        for anim in self.animations[:]:
+            anim["timer"] -= dt
+            if anim["timer"] <= 0:
+                self.animations.remove(anim)
 
         if self.is_displaying_message:
             self.message_timer -= dt
@@ -524,23 +535,75 @@ class BattleState(State):
             back_x = int(screen_w * 0.60)
             back_y = int(screen_h * 0.42) 
             surface.blit(self.island_back, (back_x, back_y))
-            if self.bicho1_sprite:
-                island_w, island_h = self.island_back.get_size()
-                sprite_w, sprite_h = self.bicho1_sprite.get_size()
-                b1_x = back_x + (island_w // 2) - (sprite_w // 2)
-                b1_y = back_y + int(island_h * 0.8) - sprite_h
-                surface.blit(self.bicho1_sprite, (b1_x, b1_y))
-
         if self.island_front:
             front_x = int(screen_w * 0.05)
             front_y = int(screen_h * 0.65) 
             surface.blit(self.island_front, (front_x, front_y))
-            if self.bicho2_sprite:
-                island_w, island_h = self.island_front.get_size()
-                sprite_w, sprite_h = self.bicho2_sprite.get_size()
-                b2_x = front_x + (island_w // 2) - (sprite_w // 2)
-                b2_y = front_y + int(island_h * 0.7) - sprite_h
-                surface.blit(self.bicho2_sprite, (b2_x, b2_y))
+
+        b1_offset_x = 0
+        b1_offset_y = 0
+        b2_offset_x = 0
+        b2_offset_y = 0
+        b1_tint = None
+        b2_tint = None
+
+        for anim in self.animations:
+            prog = 1.0 - (anim["timer"] / anim["max"])
+            if anim["type"] == "dash":
+                import math
+                offset = math.sin(prog * math.pi) * 60
+                if anim["actor"] == 1:
+                    b2_offset_x = offset
+                    b2_offset_y = -offset
+                else:
+                    b1_offset_x = -offset
+                    b1_offset_y = offset
+            elif anim["type"] == "hit":
+                import math
+                if math.sin(prog * math.pi * 6) > 0:
+                    if anim["target"] == 1: b2_tint = (150, 0, 0)
+                    else: b1_tint = (150, 0, 0)
+            elif anim["type"] == "stun":
+                import random
+                if anim["target"] == 1:
+                    b2_offset_x = random.randint(-15, 15)
+                    b2_tint = (150, 150, 0) if random.random() > 0.5 else None
+                else:
+                    b1_offset_x = random.randint(-15, 15)
+                    b1_tint = (150, 150, 0) if random.random() > 0.5 else None
+
+        if self.island_back and self.bicho1_sprite:
+            island_w, island_h = self.island_back.get_size()
+            sprite_w, sprite_h = self.bicho1_sprite.get_size()
+            b1_x = back_x + (island_w // 2) - (sprite_w // 2) + b1_offset_x
+            b1_y = back_y + int(island_h * 0.8) - sprite_h + b1_offset_y
+            
+            b1_surf = self.bicho1_sprite.copy()
+            if b1_tint:
+                b1_surf.fill(b1_tint, special_flags=pygame.BLEND_RGB_ADD)
+            surface.blit(b1_surf, (b1_x, b1_y))
+
+        if self.island_front and self.bicho2_sprite:
+            island_w, island_h = self.island_front.get_size()
+            sprite_w, sprite_h = self.bicho2_sprite.get_size()
+            b2_x = front_x + (island_w // 2) - (sprite_w // 2) + b2_offset_x
+            b2_y = front_y + int(island_h * 0.7) - sprite_h + b2_offset_y
+            
+            b2_surf = self.bicho2_sprite.copy()
+            if b2_tint:
+                b2_surf.fill(b2_tint, special_flags=pygame.BLEND_RGB_ADD)
+            surface.blit(b2_surf, (b2_x, b2_y))
+
+        # Floating texts
+        for anim in self.animations:
+            if anim["type"] == "heal":
+                prog = 1.0 - (anim["timer"] / anim["max"])
+                y_up = prog * 60
+                txt = self.big_font.render("+25 HP", True, GREEN)
+                if anim["target"] == 1:
+                    surface.blit(txt, (front_x + 100, front_y - y_up))
+                else:
+                    surface.blit(txt, (back_x + 50, back_y - y_up))
 
         # Desenhar interfaces HUD no topo
         self.draw_player_hud(surface, self.p1, 20, BLUE, align_right=False)
