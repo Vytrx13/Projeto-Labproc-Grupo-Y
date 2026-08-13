@@ -104,20 +104,8 @@ class LocalPygameClient:
             self.state_manager.active_states[-1].update(dt)
 
     def draw(self) -> None:
-        to_draw: list[State] = []
-        full_screen = self.surface.get_rect()
-        for state in self.state_manager.active_states:
-            to_draw.append(state)
-
-            if (
-                not state.transparent
-                and state.rect == full_screen
-                and not state.force_draw
-            ):
-                break
-
-        for state in reversed(to_draw):
-            state.draw(self.surface)
+        if hasattr(self.state_manager, "draw"):
+            self.state_manager.draw(self.surface)
 
     def perform_cleanup(self) -> None:
         """Limpa recursos e fecha o Pygame com segurança ao sair."""
