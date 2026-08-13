@@ -25,7 +25,6 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 
-INPUT_MODE = "UDP"  # Pode alterar para "UDP" se for usar com mediapipe
 UDP_IP = "0.0.0.0"
 UDP_PORT1 = 5005
 UDP_PORT2 = 5006
@@ -72,13 +71,14 @@ class CombatPhase(Enum):
 class BattleState(State):
     name = "CombatState"
 
-    def __init__(self, client: LocalPygameClient) -> None:
+    def __init__(self, client: LocalPygameClient, input_mode="UDP") -> None:
         super().__init__(client)
+        self.input_mode = input_mode
 
         self.font = pygame.font.SysFont("Arial", 20)
         self.hud_font = pygame.font.SysFont("Arial", 15)
         self.big_font = pygame.font.SysFont("Arial", 45)
-        
+
         self.p1 = Player()
         self.p2 = Player()
 
@@ -86,15 +86,15 @@ class BattleState(State):
         self.p1_name = "Pikachu (P1)"
         self.p2_name = "Charmander (P2)"
 
-        if INPUT_MODE == "UDP":
+        if self.input_mode == "UDP":
             self.sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock1.bind((UDP_IP, UDP_PORT1))
             self.sock1.setblocking(False)
-            
+
             self.sock2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock2.bind((UDP_IP, UDP_PORT2))
             self.sock2.setblocking(False)
-            
+
             self.sockets_list = [self.sock1, self.sock2]
 
         # -------------------------------------------------------------
@@ -129,12 +129,12 @@ class BattleState(State):
             # Plataforma Inimigo
             self.island_back = pygame.transform.smoothscale(
                 sheet.subsurface(pygame.Rect(0, 0, w, h)),
-                (int(w * SCALE), int(h * SCALE))
+                (int(w * SCALE), int(h * SCALE)),
             )
             # Plataforma Jogador
             self.island_front = pygame.transform.smoothscale(
                 sheet.subsurface(pygame.Rect(w, 0, w, h)),
-                (int(w * SCALE), int(h * SCALE))
+                (int(w * SCALE), int(h * SCALE)),
             )
 
         MON_SCALE = 0.35
@@ -142,8 +142,11 @@ class BattleState(State):
         if os.path.exists(bicho1_path):
             raw_b1 = pygame.image.load(bicho1_path).convert_alpha()
             self.bicho1_sprite = pygame.transform.smoothscale(
-                raw_b1, 
-                (int(raw_b1.get_width() * MON_SCALE), int(raw_b1.get_height() * MON_SCALE))
+                raw_b1,
+                (
+                    int(raw_b1.get_width() * MON_SCALE),
+                    int(raw_b1.get_height() * MON_SCALE),
+                ),
             )
         else:
             self.bicho1_sprite = None
@@ -152,8 +155,11 @@ class BattleState(State):
         if os.path.exists(bicho2_path):
             raw_b2 = pygame.image.load(bicho2_path).convert_alpha()
             self.bicho2_sprite = pygame.transform.smoothscale(
-                raw_b2, 
-                (int(raw_b2.get_width() * MON_SCALE), int(raw_b2.get_height() * MON_SCALE))
+                raw_b2,
+                (
+                    int(raw_b2.get_width() * MON_SCALE),
+                    int(raw_b2.get_height() * MON_SCALE),
+                ),
             )
         else:
             self.bicho2_sprite = None
@@ -163,7 +169,9 @@ class BattleState(State):
         self.message_timer: float = 0.0
         self.is_displaying_message: bool = False
 
-        self._set_message("Batalha iniciada! Complete a sequência primeiro!", duration=3.0)
+        self._set_message(
+            "Batalha iniciada! Complete a sequência primeiro!", duration=3.0
+        )
 
     def _set_message(self, text: str, duration: float = 2.0) -> None:
         self.message_text = text
@@ -183,9 +191,11 @@ class BattleState(State):
                 opponent.hp -= 25
                 player.target_sequence = player.generate_new_sequence(4)
                 player.reset_sequence()
-                
+
                 attacker = self.p1_name if player_id == 1 else self.p2_name
-                self._set_message(f"{attacker} completou a sequência e atacou!", duration=2.0)
+                self._set_message(
+                    f"{attacker} completou a sequência e atacou!", duration=2.0
+                )
 
     def handle_input_keyboard(self, event):
         if event.key == pygame.K_q:
@@ -200,7 +210,7 @@ class BattleState(State):
             self.process_gesture(1, "10000")
         elif event.key == pygame.K_y:
             self.process_gesture(1, "01111")
-            
+
         elif event.key == pygame.K_u:
             self.process_gesture(2, "11111")
         elif event.key == pygame.K_i:
@@ -217,10 +227,13 @@ class BattleState(State):
     def process_event(self, events: list[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN:
-                if self.phase == CombatPhase.END and event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                if self.phase == CombatPhase.END and event.key in (
+                    pygame.K_RETURN,
+                    pygame.K_SPACE,
+                ):
                     self.client.state_manager.pop()
                     return
-                if INPUT_MODE == "KEYBOARD":
+                if self.input_mode == "KEYBOARD":
                     self.handle_input_keyboard(event)
 
     def handle_input_udp(self):
@@ -230,7 +243,7 @@ class BattleState(State):
                 data, addr = s.recvfrom(1024)
                 msg_raw = data.decode("utf-8").strip()
                 porta = s.getsockname()[1]
-                
+
                 # Trata prefixos antigos por garantia
                 if msg_raw.startswith("P1:"):
                     msg_raw = msg_raw.split(":", 1)[1]
@@ -238,15 +251,24 @@ class BattleState(State):
                     msg_raw = msg_raw.split(":", 1)[1]
 
                 # Se o script da câmera envia o array Python puro tipo "[1, 0, 1, 1, 0]", converte para "10110"
-                msg_clean = msg_raw.replace("[", "").replace("]", "").replace(", ", "").replace(",", "")
+                msg_clean = (
+                    msg_raw.replace("[", "")
+                    .replace("]", "")
+                    .replace(", ", "")
+                    .replace(",", "")
+                )
 
                 if porta == UDP_PORT1:
-                    print(f"[DEBUG UDP] Player 1 (Porta 5005) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'")
+                    print(
+                        f"[DEBUG UDP] Player 1 (Porta 5005) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'"
+                    )
                     self.process_gesture(1, msg_clean)
                 elif porta == UDP_PORT2:
-                    print(f"[DEBUG UDP] Player 2 (Porta 5006) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'")
+                    print(
+                        f"[DEBUG UDP] Player 2 (Porta 5006) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'"
+                    )
                     self.process_gesture(2, msg_clean)
-                    
+
         except BlockingIOError:
             pass
         except Exception as e:
@@ -260,10 +282,14 @@ class BattleState(State):
             pass
 
         if self.p1.hp <= 0 and self.phase != CombatPhase.END:
-            self._set_message(f"{self.p1_name} desmaiou! {self.p2_name} Venceu!", duration=5.0)
+            self._set_message(
+                f"{self.p1_name} desmaiou! {self.p2_name} Venceu!", duration=5.0
+            )
             self.phase = CombatPhase.END
         elif self.p2.hp <= 0 and self.phase != CombatPhase.END:
-            self._set_message(f"{self.p2_name} desmaiou! {self.p1_name} Venceu!", duration=5.0)
+            self._set_message(
+                f"{self.p2_name} desmaiou! {self.p1_name} Venceu!", duration=5.0
+            )
             self.phase = CombatPhase.END
 
     def update(self, dt: float) -> None:
@@ -281,7 +307,7 @@ class BattleState(State):
             self.p2.reset_sequence()
 
         if self.phase == CombatPhase.ACTION:
-            if INPUT_MODE == "UDP":
+            if self.input_mode == "UDP":
                 self.handle_input_udp()
             self.check_logic()
 
@@ -292,7 +318,7 @@ class BattleState(State):
         hp_x = x_offset
         if align_right:
             hp_x = x_offset + (300 - hp_width)
-            
+
         pygame.draw.rect(
             surface, GREEN if player.hp > 30 else RED, (hp_x, 30, hp_width, 25)
         )
@@ -306,7 +332,7 @@ class BattleState(State):
             if align_right:
                 # Alinha os icones começando da direita
                 icon_x = x_offset + 300 - box_w - (i * spacing)
-                
+
             icon_y = 70
 
             if i < player.current_step:
@@ -328,33 +354,47 @@ class BattleState(State):
                 )
 
             gesture_name = GESTURES.get(gesture_bits, "???")
+            if self.input_mode == "KEYBOARD":
+                if player == self.p1:
+                    keys_map = {"11111": "Q", "00000": "W", "01100": "E", "01000": "R", "10000": "T", "01111": "Y"}
+                    gesture_name = keys_map.get(gesture_bits, "???")
+                else:
+                    keys_map = {"11111": "U", "00000": "I", "01100": "O", "01000": "P", "10000": "J", "01111": "K"}
+                    gesture_name = keys_map.get(gesture_bits, "???")
+
             words = gesture_name.split()
             for w_idx, word in enumerate(words):
                 text_surf = self.hud_font.render(word, True, text_color)
                 # Centraliza o texto na caixinha
-                text_rect = text_surf.get_rect(center=(icon_x + box_w // 2, icon_y + 30 + (w_idx * 15) - (len(words) - 1) * 7))
+                text_rect = text_surf.get_rect(
+                    center=(
+                        icon_x + box_w // 2,
+                        icon_y + 30 + (w_idx * 15) - (len(words) - 1) * 7,
+                    )
+                )
                 surface.blit(text_surf, text_rect)
 
         # Barra de tempo (10 segundos)
         current_time = pygame.time.get_ticks()
         time_elapsed = current_time - player.sequence_start_time
         time_left_ratio = 1.0 - (time_elapsed / 10000.0)
-        if time_left_ratio < 0: time_left_ratio = 0
+        if time_left_ratio < 0:
+            time_left_ratio = 0
 
         timer_w = 300
         timer_x = x_offset
         pygame.draw.rect(surface, RED, (timer_x, 140, timer_w, 10))
-        
+
         active_timer_w = int(timer_w * time_left_ratio)
         active_timer_x = timer_x
         if align_right:
             active_timer_x = timer_x + (timer_w - active_timer_w)
-            
-        pygame.draw.rect(
-            surface, WHITE, (active_timer_x, 140, active_timer_w, 10)
-        )
 
-    def draw_text_with_shadow(self, surface, text, x, y, font, text_color, shadow_color=BLACK):
+        pygame.draw.rect(surface, WHITE, (active_timer_x, 140, active_timer_w, 10))
+
+    def draw_text_with_shadow(
+        self, surface, text, x, y, font, text_color, shadow_color=BLACK
+    ):
         shadow = font.render(text, True, shadow_color)
         surface.blit(shadow, (x + 2, y + 2))
         main_text = font.render(text, True, text_color)
@@ -397,9 +437,16 @@ class BattleState(State):
 
         # Desenhar nomes próximos à barra de HP com sombreamento
         self.draw_text_with_shadow(surface, self.p1_name, 20, 5, self.font, WHITE)
-        
+
         name2_surf = self.font.render(self.p2_name, True, WHITE)
-        self.draw_text_with_shadow(surface, self.p2_name, screen_w - 20 - name2_surf.get_width(), 5, self.font, WHITE)
+        self.draw_text_with_shadow(
+            surface,
+            self.p2_name,
+            screen_w - 20 - name2_surf.get_width(),
+            5,
+            self.font,
+            WHITE,
+        )
 
         if self.is_displaying_message:
             dialog_rect = pygame.Rect(20, screen_h - 140, screen_w - 40, 120)
@@ -407,9 +454,11 @@ class BattleState(State):
             pygame.draw.rect(surface, (255, 255, 255), dialog_rect, 3)
             txt_surface = self.font.render(self.message_text, True, (255, 255, 255))
             surface.blit(txt_surface, (dialog_rect.x + 20, dialog_rect.y + 20))
-            
+
             if self.phase == CombatPhase.END:
-                prompt = self.font.render("Pressione [ENTER] ou [ESPAÇO] para sair", True, (255, 255, 0))
+                prompt = self.font.render(
+                    "Pressione [ENTER] ou [ESPAÇO] para sair", True, (255, 255, 0)
+                )
                 surface.blit(prompt, (dialog_rect.x + 20, dialog_rect.y + 60))
 
         super().draw(surface)
