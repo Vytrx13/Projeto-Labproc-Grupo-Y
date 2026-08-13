@@ -69,6 +69,8 @@ class Player:
 
     def check_timeout(self, current_time, timeout_ms=10000):
         if (current_time - self.sequence_start_time) > timeout_ms:
+            import hardware
+            hardware.error_sound()
             self.reset_sequence()
             return True
         return False
@@ -86,6 +88,9 @@ class BattleState(State):
     def __init__(self, client: LocalPygameClient, input_mode="UDP") -> None:
         super().__init__(client)
         self.input_mode = input_mode
+
+        import hardware
+        hardware.init_hardware()
 
         self.font = pygame.font.SysFont("Arial", 20)
         self.hud_font = pygame.font.SysFont("Arial", 15)
@@ -196,6 +201,8 @@ class BattleState(State):
         attacker_name = self.p1_name if player_id == 1 else self.p2_name
 
         if gesture_str == "01001" and player.special_charges >= player.max_special_charges:
+            import hardware
+            hardware.special_sound()
             player.special_charges = 0
             if player_id == 1:
                 opponent.hp -= 20
@@ -210,6 +217,9 @@ class BattleState(State):
         if gesture_str == player.target_sequence[player.current_step]:
             player.current_step += 1
             if player.current_step >= len(player.target_sequence):
+                import hardware
+                hardware.success_sound()
+                
                 opponent.hp -= 25
                 if player.special_charges < player.max_special_charges:
                     player.special_charges += 1
@@ -339,6 +349,9 @@ class BattleState(State):
             if self.input_mode == "UDP":
                 self.handle_input_udp()
             self.check_logic()
+            
+            import hardware
+            hardware.update_lcd(self.p1.hp, self.p2.hp)
 
     def draw_player_hud(self, surface, player, x_offset, color, align_right=False):
         # Barra de HP
