@@ -31,19 +31,20 @@ UDP_PORT2 = 5006
 
 GESTURES = {
     "11111": "ABERTO",
-    "00000": "PUNHO",
     "01100": "PAZ",
-    "01000": "APONTA",
     "10000": "JOIA",
-    "01111": "QUATRO",
+    "00001": "MINDINHO",
+    "10001": "HANG_LOOSE",
+    "11100": "TRES",
+    "11110": "QUATRO",
     "01001": "ESPECIAL",
 }
-GESTURE_KEYS = ["11111", "00000", "01100", "01000", "10000", "01111"]
+GESTURE_KEYS = ["11111", "01100", "10000", "00001", "10001", "11100", "11110"]
 
 
 class Player:
     def __init__(self):
-        self.hp = 100
+        self.hp = 200
         self.special_charges = 0
         self.max_special_charges = 2
         self.last_sequence_end_symbol = None
@@ -97,12 +98,21 @@ class BattleState(State):
         self.big_font = pygame.font.SysFont("Arial", 45)
         self.alert_font = pygame.font.SysFont("Arial", 16, bold=True)
 
+        self.gesture_images = {}
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+        for key in GESTURES.keys():
+            img_path = os.path.join(assets_dir, f"{key}.png")
+            if os.path.exists(img_path):
+                img = pygame.image.load(img_path).convert_alpha()
+                img = pygame.transform.smoothscale(img, (45, 60))
+                self.gesture_images[key] = img
+
         self.p1 = Player()
         self.p2 = Player()
 
         # Nomes para display (mesmo do original, mas adaptado para o novo modelo)
-        self.p1_name = "Pikachu (P1)"
-        self.p2_name = "Charmander (P2)"
+        self.p1_name = "Six (P1)"
+        self.p2_name = "Seven (P2)"
 
         if self.input_mode == "UDP":
             self.sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -210,7 +220,7 @@ class BattleState(State):
                 self._set_message(f"{attacker_name} usou o ESPECIAL! Oponente atordoado!", duration=3.0)
             else:
                 opponent.hp -= 25
-                player.hp = min(100, player.hp + 25)
+                player.hp = min(200, player.hp + 25)
                 self._set_message(f"{attacker_name} usou o ESPECIAL! Curou 25 HP!", duration=3.0)
             return
 
@@ -233,30 +243,34 @@ class BattleState(State):
         if event.key == pygame.K_q:
             self.process_gesture(1, "11111")
         elif event.key == pygame.K_w:
-            self.process_gesture(1, "00000")
-        elif event.key == pygame.K_e:
             self.process_gesture(1, "01100")
-        elif event.key == pygame.K_r:
-            self.process_gesture(1, "01000")
-        elif event.key == pygame.K_t:
+        elif event.key == pygame.K_e:
             self.process_gesture(1, "10000")
+        elif event.key == pygame.K_r:
+            self.process_gesture(1, "00001")
+        elif event.key == pygame.K_t:
+            self.process_gesture(1, "10001")
         elif event.key == pygame.K_y:
-            self.process_gesture(1, "01111")
+            self.process_gesture(1, "11100")
+        elif event.key == pygame.K_u:
+            self.process_gesture(1, "11110")
         elif event.key == pygame.K_a:
             self.process_gesture(1, "01001")
 
-        elif event.key == pygame.K_u:
+        elif event.key == pygame.K_z:
             self.process_gesture(2, "11111")
-        elif event.key == pygame.K_i:
-            self.process_gesture(2, "00000")
-        elif event.key == pygame.K_o:
+        elif event.key == pygame.K_x:
             self.process_gesture(2, "01100")
-        elif event.key == pygame.K_p:
-            self.process_gesture(2, "01000")
-        elif event.key == pygame.K_j:
+        elif event.key == pygame.K_c:
             self.process_gesture(2, "10000")
-        elif event.key == pygame.K_k:
-            self.process_gesture(2, "01111")
+        elif event.key == pygame.K_v:
+            self.process_gesture(2, "00001")
+        elif event.key == pygame.K_b:
+            self.process_gesture(2, "10001")
+        elif event.key == pygame.K_n:
+            self.process_gesture(2, "11100")
+        elif event.key == pygame.K_m:
+            self.process_gesture(2, "11110")
         elif event.key == pygame.K_l:
             self.process_gesture(2, "01001")
 
@@ -296,14 +310,10 @@ class BattleState(State):
                 )
 
                 if porta == UDP_PORT1:
-                    print(
-                        f"[DEBUG UDP] Player 1 (Porta 5005) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'"
-                    )
+                    print(f"Recebido no raspberry (P1): {msg_clean}")
                     self.process_gesture(1, msg_clean)
                 elif porta == UDP_PORT2:
-                    print(
-                        f"[DEBUG UDP] Player 2 (Porta 5006) - Original: '{data.decode('utf-8').strip()}' | Processado: '{msg_clean}'"
-                    )
+                    print(f"Recebido no raspberry (P2): {msg_clean}")
                     self.process_gesture(2, msg_clean)
 
         except BlockingIOError:
@@ -356,13 +366,13 @@ class BattleState(State):
     def draw_player_hud(self, surface, player, x_offset, color, align_right=False):
         # Barra de HP
         pygame.draw.rect(surface, WHITE, (x_offset, 30, 300, 25))
-        hp_width = max(0, (player.hp / 100) * 300)
+        hp_width = max(0, (player.hp / 200) * 300)
         hp_x = x_offset
         if align_right:
             hp_x = x_offset + (300 - hp_width)
 
         pygame.draw.rect(
-            surface, GREEN if player.hp > 30 else RED, (hp_x, 30, hp_width, 25)
+            surface, GREEN if player.hp > 60 else RED, (hp_x, 30, hp_width, 25)
         )
 
         # Sequência alvo
@@ -392,26 +402,41 @@ class BattleState(State):
                     surface, WHITE, (icon_x, icon_y, box_w, box_h), 3, border_radius=5
                 )
 
-            gesture_name = GESTURES.get(gesture_bits, "???")
             if self.input_mode == "KEYBOARD":
                 if player == self.p1:
-                    keys_map = {"11111": "Q", "00000": "W", "01100": "E", "01000": "R", "10000": "T", "01111": "Y"}
-                    gesture_name = keys_map.get(gesture_bits, "???")
+                    keys_map = {"11111": "Q", "01100": "W", "10000": "E", "00001": "R", "10001": "T", "11100": "Y", "11110": "U"}
                 else:
-                    keys_map = {"11111": "U", "00000": "I", "01100": "O", "01000": "P", "10000": "J", "01111": "K"}
-                    gesture_name = keys_map.get(gesture_bits, "???")
-
-            words = gesture_name.split()
-            for w_idx, word in enumerate(words):
-                text_surf = self.hud_font.render(word, True, text_color)
-                # Centraliza o texto na caixinha
-                text_rect = text_surf.get_rect(
-                    center=(
-                        icon_x + box_w // 2,
-                        icon_y + 30 + (w_idx * 15) - (len(words) - 1) * 7,
+                    keys_map = {"11111": "Z", "01100": "X", "10000": "C", "00001": "V", "10001": "B", "11100": "N", "11110": "M"}
+                
+                gesture_name = keys_map.get(gesture_bits, "???")
+                words = gesture_name.split()
+                for w_idx, word in enumerate(words):
+                    text_surf = self.hud_font.render(word, True, text_color)
+                    text_rect = text_surf.get_rect(
+                        center=(
+                            icon_x + box_w // 2,
+                            icon_y + 30 + (w_idx * 15) - (len(words) - 1) * 7,
+                        )
                     )
-                )
-                surface.blit(text_surf, text_rect)
+                    surface.blit(text_surf, text_rect)
+            else:
+                img = self.gesture_images.get(gesture_bits)
+                if img:
+                    img_rect = img.get_rect(center=(icon_x + box_w // 2, icon_y + box_h // 2))
+                    surface.blit(img, img_rect)
+                else:
+                    # fallback to text if image missing
+                    gesture_name = GESTURES.get(gesture_bits, "???")
+                    words = gesture_name.split()
+                    for w_idx, word in enumerate(words):
+                        text_surf = self.hud_font.render(word, True, text_color)
+                        text_rect = text_surf.get_rect(
+                            center=(
+                                icon_x + box_w // 2,
+                                icon_y + 30 + (w_idx * 15) - (len(words) - 1) * 7,
+                            )
+                        )
+                        surface.blit(text_surf, text_rect)
 
         # Barra de tempo (10 segundos)
         if self.phase == CombatPhase.END:
@@ -448,16 +473,35 @@ class BattleState(State):
 
         if player.special_charges >= player.max_special_charges:
             spec_key = "A" if player == self.p1 else "L"
-            txt = f"ESPECIAL PRONTO! [{spec_key}]" if self.input_mode == "KEYBOARD" else "ESPECIAL PRONTO! [ROCK 🤟]"
             
-            t_surf = self.alert_font.render(txt, True, YELLOW)
-            x_pos = timer_x + 70
-            if align_right:
-                x_pos = timer_x + timer_w - t_surf.get_width()
+            if self.input_mode == "KEYBOARD":
+                txt = f"ESPECIAL PRONTO! [{spec_key}]"
+                t_surf = self.alert_font.render(txt, True, YELLOW)
+                x_pos = timer_x + 70
+                if align_right:
+                    x_pos = timer_x + timer_w - t_surf.get_width()
+                y_pos = special_y + 20
+                self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
+            else:
+                txt = "ESPECIAL PRONTO!"
+                t_surf = self.alert_font.render(txt, True, YELLOW)
+                spec_img = self.gesture_images.get("01001")
                 
-            y_pos = special_y - t_surf.get_height() // 2
-            
-            self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
+                if spec_img:
+                    mini_img = pygame.transform.smoothscale(spec_img, (30, 40))
+                    total_w = t_surf.get_width() + 5 + mini_img.get_width()
+                else:
+                    total_w = t_surf.get_width()
+                    
+                x_pos = timer_x + 70
+                if align_right:
+                    x_pos = timer_x + timer_w - total_w
+                    
+                y_pos = special_y + 20
+                self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
+                
+                if spec_img:
+                    surface.blit(mini_img, (x_pos + t_surf.get_width() + 5, special_y + 10))
 
     def draw_text_with_shadow(
         self, surface, text, x, y, font, text_color, shadow_color=BLACK
