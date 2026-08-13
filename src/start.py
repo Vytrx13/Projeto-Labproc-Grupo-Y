@@ -5,8 +5,7 @@ import logging
 import pygame
 
 from client import LocalPygameClient
-from state.menuState import MenuState 
-
+from state.menuState import MenuState
 
 
 class DummyConfig:
