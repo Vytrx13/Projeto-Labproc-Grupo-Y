@@ -27,8 +27,7 @@ class MenuState(State):
                 elif event.key == pygame.K_RETURN:
                     selected_mode = self.modes[self.selected_index]
                     battleState = BattleState(self.client, input_mode=selected_mode)
-                    self.client.state_manager.change_state(battleState)
-                    print(f"ENTER pressionado! Iniciando modo: {selected_mode}")
+                    self.client.state_manager.push(battleState)
 
     def update(self, dt: float) -> None:
         super().update(dt)

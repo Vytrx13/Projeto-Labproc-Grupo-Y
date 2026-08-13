@@ -43,12 +43,21 @@ GESTURE_KEYS = list(GESTURES.keys())
 class Player:
     def __init__(self):
         self.hp = 100
+        self.last_sequence_end_symbol = None
         self.target_sequence = self.generate_new_sequence(4)
         self.current_step = 0
         self.sequence_start_time = pygame.time.get_ticks()
 
     def generate_new_sequence(self, length):
-        return [random.choice(GESTURE_KEYS) for _ in range(length)]
+        available_first = [k for k in GESTURE_KEYS if k != self.last_sequence_end_symbol]
+        first_symbol = random.choice(available_first)
+        
+        remaining = [k for k in GESTURE_KEYS if k != first_symbol]
+        rest = random.sample(remaining, length - 1)
+        
+        seq = [first_symbol] + rest
+        self.last_sequence_end_symbol = seq[-1]
+        return seq
 
     def reset_sequence(self):
         self.current_step = 0
@@ -169,10 +178,6 @@ class BattleState(State):
         self.message_timer: float = 0.0
         self.is_displaying_message: bool = False
 
-        self._set_message(
-            "Batalha iniciada! Complete a sequência primeiro!", duration=3.0
-        )
-
     def _set_message(self, text: str, duration: float = 2.0) -> None:
         self.message_text = text
         self.message_timer = duration
@@ -189,7 +194,6 @@ class BattleState(State):
             player.current_step += 1
             if player.current_step >= len(player.target_sequence):
                 opponent.hp -= 25
-                player.target_sequence = player.generate_new_sequence(4)
                 player.reset_sequence()
 
                 attacker = self.p1_name if player_id == 1 else self.p2_name
@@ -227,12 +231,13 @@ class BattleState(State):
     def process_event(self, events: list[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN:
-                if self.phase == CombatPhase.END and event.key in (
-                    pygame.K_RETURN,
-                    pygame.K_SPACE,
-                ):
-                    self.client.state_manager.pop()
-                    return
+                if self.phase == CombatPhase.END:
+                    if event.key == pygame.K_RETURN:
+                        self.client.state_manager.pop()
+                        return
+                    elif event.key == pygame.K_SPACE:
+                        pygame.event.post(pygame.event.Event(pygame.QUIT))
+                        return
                 if self.input_mode == "KEYBOARD":
                     self.handle_input_keyboard(event)
 
@@ -286,11 +291,13 @@ class BattleState(State):
                 f"{self.p1_name} desmaiou! {self.p2_name} Venceu!", duration=5.0
             )
             self.phase = CombatPhase.END
+            self.end_time = pygame.time.get_ticks()
         elif self.p2.hp <= 0 and self.phase != CombatPhase.END:
             self._set_message(
                 f"{self.p2_name} desmaiou! {self.p1_name} Venceu!", duration=5.0
             )
             self.phase = CombatPhase.END
+            self.end_time = pygame.time.get_ticks()
 
     def update(self, dt: float) -> None:
         super().update(dt)
@@ -375,7 +382,11 @@ class BattleState(State):
                 surface.blit(text_surf, text_rect)
 
         # Barra de tempo (10 segundos)
-        current_time = pygame.time.get_ticks()
+        if self.phase == CombatPhase.END:
+            current_time = getattr(self, "end_time", pygame.time.get_ticks())
+        else:
+            current_time = pygame.time.get_ticks()
+            
         time_elapsed = current_time - player.sequence_start_time
         time_left_ratio = 1.0 - (time_elapsed / 10000.0)
         if time_left_ratio < 0:
