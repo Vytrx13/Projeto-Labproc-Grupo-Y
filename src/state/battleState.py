@@ -521,8 +521,8 @@ class BattleState(State):
             surface.fill((40, 50, 60))
 
         if self.island_back:
-            back_x = int(screen_w * 0.55)
-            back_y = int(screen_h * 0.22)
+            back_x = int(screen_w * 0.60)
+            back_y = int(screen_h * 0.42) 
             surface.blit(self.island_back, (back_x, back_y))
             if self.bicho1_sprite:
                 island_w, island_h = self.island_back.get_size()
@@ -533,7 +533,7 @@ class BattleState(State):
 
         if self.island_front:
             front_x = int(screen_w * 0.05)
-            front_y = int(screen_h * 0.50)
+            front_y = int(screen_h * 0.65) 
             surface.blit(self.island_front, (front_x, front_y))
             if self.bicho2_sprite:
                 island_w, island_h = self.island_front.get_size()
