@@ -480,7 +480,7 @@ class BattleState(State):
                 x_pos = timer_x + 70
                 if align_right:
                     x_pos = timer_x + timer_w - t_surf.get_width()
-                y_pos = special_y - t_surf.get_height() // 2
+                y_pos = special_y + 20
                 self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
             else:
                 txt = "ESPECIAL PRONTO!"
@@ -497,11 +497,11 @@ class BattleState(State):
                 if align_right:
                     x_pos = timer_x + timer_w - total_w
                     
-                y_pos = special_y - t_surf.get_height() // 2
+                y_pos = special_y + 20
                 self.draw_text_with_shadow(surface, txt, x_pos, y_pos, self.alert_font, (255, 200, 0))
                 
                 if spec_img:
-                    surface.blit(mini_img, (x_pos + t_surf.get_width() + 5, special_y - 20))
+                    surface.blit(mini_img, (x_pos + t_surf.get_width() + 5, special_y + 10))
 
     def draw_text_with_shadow(
         self, surface, text, x, y, font, text_color, shadow_color=BLACK
